@@ -13,7 +13,7 @@ from app.privacy_auditor import PrivacyAuditor
 from app.repo_analyzer import RepoAnalyzer
 from app.report_writer import ReportWriter
 from app.reproducer import Reproducer
-from app.schemas import FullCycleRun
+from app.schemas import FullCycleRun, ReproductionResult
 from app.security_guard import SecurityGuard
 from app.storage import RunStore
 from app.tester import Tester
@@ -47,7 +47,14 @@ class FullCycleRunner:
         command_safety = self.guard.validate_commands(profile.test_commands)
         issue_safety = self.guard.scan_text(issue.text, location="issue")
         safety = self._merge_safety(command_safety, issue_safety)
-        reproduction = self.reproducer.reproduce(working_repo, profile)
+        if safety.allowed:
+            reproduction = self.reproducer.reproduce(working_repo, profile)
+        else:
+            reproduction = ReproductionResult(
+                reproduced=False,
+                baseline_runs=(),
+                evidence="Skipped: safety findings blocked test execution.",
+            )
         patch = self.patcher.propose_and_apply(working_repo, issue, plan, apply=apply_patch and safety.allowed)
         patched_runs = self.tester.run(working_repo, profile.test_commands) if patch.applied else ()
         diff_safety = self.guard.scan_text(patch.diff, location="patch.diff")
